@@ -118,6 +118,9 @@
                 {
                     delete pressedKeys[event.key]
                 }
+
+                document.addEventListener('visibilitychange', () => pressedKeys = {})
+                window.addEventListener('blur', () => pressedKeys = {})
                 
                 let enterEventElementCache
                 while (true)
