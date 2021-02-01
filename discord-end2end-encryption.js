@@ -39,18 +39,18 @@
                 ]
         }
 
-        const domActions =
+        const domActions = (() =>
         {
-            getMessagesArray()
+            const getMessagesArray = () =>
             {
                 return Array.from(document.querySelectorAll('[class*="chatContent-"] [class*="messagesWrapper-"] [class*="messageContent-"]')) // selecting messageContent to select also replies and maybe things that might come with some future updates
                     .map(el =>
                     ({
-                        get textElement() { return el }, // where the text is
+                        get element() { return el }, // where the text is
 
                         get text() // text itself
                         {
-                            let child = this.textElement?.firstChild
+                            let child = this.element?.firstChild
                             const texts = []
 
                             while (child)
@@ -61,36 +61,96 @@
 
                             return texts.join("")
                         },
-                        set text(value) { Array.from(this.textElement.childNodes).find((child) => child.nodeType === 3).nodeValue = value },
+                        set text(value) { Array.from(this.element.childNodes).find((child) => child.nodeType === 3).nodeValue = value },
 
-                        get prefixElement() { return this.textElement.querySelector('[__prefixEl]') }, // custom element right before the text
+                        get prefixElement() { return this.element.querySelector('[__prefixEl]') }, // custom element right before the text
                         set prefixElement(prefixEl)
                         {
                             if (this.prefixElement) this.prefixElement.remove()
+                            if (!prefixEl) return
                             prefixEl.setAttribute('__prefixEl', '')
-                            this.textElement.insertBefore(prefixEl, this.textElement.firstChild)
+                            this.element.insertBefore(prefixEl, this.element.firstChild)
                         }
                     }))
-            },
-
-
-            get messageBoxElementToListenForEnterEvent() { return (document.querySelector('[class*="modal-"]') ?? document).querySelector('form[class*="form-"]') },
-
-            get messageBoxText() // message input
-            {
-                return Array.from((document.querySelector('[class*="modal-"]') ?? document).querySelectorAll('form [class*="slateTextArea-"] [data-slate-string]'))
-                    .map((line) => line.textContent).join('\n')
-
-            },
-            set messageBoxText(value)
-            {
-                const reactEditor = (document.querySelector('[class*="modal-"]') ?? document).querySelector('form [class*="slateTextArea-"]')
-                    .__reactInternalInstance$.memoizedProps.children.props.editor
-                reactEditor.moveAnchorToEndOfDocument()
-                for (let i = 0; i < this.messageBoxText.length; i++) reactEditor.deleteBackward()
-                reactEditor.insertText(value)
             }
-        }
+
+            let registerBeforeMessageSendEventListenerOnce = false
+            const messageBox = {
+                registerBeforeSendEventListener(listener)
+                {
+                    if (registerBeforeMessageSendEventListenerOnce) throw new Error('addBeforeMessageSendEventListener can only run once')
+                    registerBeforeMessageSendEventListenerOnce = true
+
+                    const addListener = (element) =>
+                    {
+                        element.addEventListener('keydown', onKeyDown)
+                        element.addEventListener('keyup', onKeyUp)
+                    }
+
+                    const removeListener = (element) =>
+                    {
+                        element.removeEventListener('keydown', onKeyDown)
+                        element.removeEventListener('keyup', onKeyUp)
+                    }
+
+                    let pressedKeys = {}
+
+                    const onKeyDown = (event) =>
+                    {
+                        pressedKeys[event.key] = true
+                        eventFunc()
+                    }
+
+                    const onKeyUp = (event) =>
+                    {
+                        delete pressedKeys[event.key]
+                    }
+
+                    window.addEventListener('blur', () => pressedKeys = {})
+                    document.addEventListener('visibilitychange', () => pressedKeys = {})
+
+
+                    const eventFunc = () =>
+                    {
+                        if (pressedKeys['Enter'] && !pressedKeys['Shift']) listener()
+                    }
+
+                    (async () =>
+                    {
+                        let _elementCache = null
+                        while (true)
+                        {
+                            await new Promise((resolver, reject) => setTimeout(resolver, 500))
+
+                            const element = document.querySelector('[class*="modal-"] [class*="textArea-"]') ??
+                                document.querySelector('[class*="message-"] [class*="textArea-"]') ??
+                                document.querySelector('form[class*="form-"]')
+                            if (_elementCache === element) continue
+
+                            if (_elementCache) removeListener(_elementCache)
+                            addListener(element)
+                            _elementCache = element
+                        }
+                    })()
+                },
+                get text() // message input
+                {
+                    return Array.from((document.querySelector('[class*="modal-"]') ?? document).querySelectorAll('[class*="slateTextArea-"] [data-slate-string]'))
+                        .map((line) => line.textContent).join('\n')
+
+                },
+                set text(value)
+                {
+                    const reactEditor = (document.querySelector('[class*="modal-"]') ?? document).querySelector('[class*="slateTextArea-"]')
+                        .__reactInternalInstance$.memoizedProps.children.props.editor
+                    reactEditor.moveAnchorToEndOfDocument()
+                    for (let i = 0; i < 2000; i++) reactEditor.deleteBackward()
+                    reactEditor.insertText(value)
+                }
+            }
+
+            return { getMessagesArray, messageBox }
+        })()
 
         const encrypt = (text, passphrase) =>
         {
@@ -120,50 +180,16 @@
                 const keys = keyStore[location.pathname]
                 if (!keys) return
 
-                const text = domActions.messageBoxText
+                const text = domActions.messageBox.text
                 if (!text) return
 
                 const encrypted = encrypt(text, keys[0].passphrase).toString()
                 console.log('encrypted', text, encrypted)
 
-                domActions.messageBoxText = safePrefix(keys[0].prefix) + encrypted
+                domActions.messageBox.text = safePrefix(keys[0].prefix) + encrypted
             }
 
-            (async () =>
-            {
-                let pressedKeys
-                const onKeyDown = (event) =>
-                {
-                    pressedKeys[event.key] = true
-                    if (pressedKeys['Enter'] && !pressedKeys['Shift']) encryptMessageBox()
-                }
-                const onKeyUp = (event) =>
-                {
-                    delete pressedKeys[event.key]
-                }
-
-                document.addEventListener('visibilitychange', () => pressedKeys = {})
-                window.addEventListener('blur', () => pressedKeys = {})
-
-                let enterEventElementCache
-                while (true)
-                {
-                    await new Promise((resolver, reject) => setTimeout(resolver, 500))
-
-                    const enterEventElement = domActions.messageBoxElementToListenForEnterEvent
-                    if (!enterEventElement) continue
-                    if (enterEventElement === enterEventElementCache) continue
-
-                    enterEventElementCache = enterEventElement
-                    pressedKeys = {}
-
-                    enterEventElementCache?.removeEventListener('keydown', onKeyDown)
-                    enterEventElementCache?.removeEventListener('keyup', onKeyUp)
-
-                    enterEventElement.addEventListener('keydown', onKeyDown)
-                    enterEventElement.addEventListener('keyup', onKeyUp)
-                }
-            })()
+            domActions.messageBox.registerBeforeSendEventListener(encryptMessageBox)
 
             const refreshMessages = async () =>
             {
@@ -173,15 +199,18 @@
                 const messages = domActions.getMessagesArray()
                 for (const message of messages)
                 {
-                    if (!message.text) continue // skip if the message is undefined like
+                    const rawText = message.text
+                    if (!rawText) continue // skip if the message is undefined like
 
-                    const key = keys.find((key) => message.text.startsWith(safePrefix(key.prefix)))  // check if the message has the prefix
+                    if (message.element.__textCache === rawText) continue // skip if its already been tried to decrypted, so it skips the errors
+                    if (message.prefixElement) message.prefixElement = null
+                    message.element.__textCache = rawText // btw also setting this after the decryption at the bottom
+
+                    const key = keys.find((key) => rawText.startsWith(safePrefix(key.prefix)))  // check if the message has the prefix
                     if (!key) continue // skip if the key is undefined like
 
-                    const encrypted = message.text.substr(safePrefix(key.prefix).length) // get text, remove the Prefix
+                    const encrypted = rawText.substr(safePrefix(key.prefix).length) // get text, remove the Prefix
 
-                    if (message.textElement.hasAttribute('__tried-to-decrypt')) continue // skip if its already been tried to decrypted, so it skips the errors. also discord should remove this when the message is edited
-                    message.textElement.setAttribute('__tried-to-decrypt', '')
                     try
                     {
                         // decrypted the message and update it
@@ -199,9 +228,16 @@
                         prefixElement.style.fontFamily = 'arial'
                         prefixElement.style.fontSize = '10px'
                         prefixElement.style.fontWeight = 'bold'
-                        prefixElement.textContent = 'decrypted🍔'
+
+                        const img = document.createElement('img')
+                        img.src = 'https://discord.com/assets/8b7eb8b25468313916d2e5ec3727cd2d.svg'
+                        img.style.height = '10px'
+                        img.style.width = '10px'
+                        prefixElement.appendChild(img)
+
                         message.prefixElement = prefixElement
 
+                        message.element.__textCache = text
                         console.log('decrypted', encrypted, text)
                     }
                     catch (ex)
