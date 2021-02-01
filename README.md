@@ -18,7 +18,7 @@ const keysStore = {
     // you can have multiple passphrases for different prefixes, so if u change your passphrase you can still see the old messages
     {
       // first passphrase is the default one and will be used to encrypt your messages
-      prefix: "$$2:",
+      prefix: "$$2:", // prefix for the encrypted message so the script can know which passphrase to use
       passphrase: "new (current) passphrase here",
     },
     {
