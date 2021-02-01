@@ -176,17 +176,34 @@
 
             const RSA = (() =>
             {
-                const generateKeys = () =>
+                const name = "RSA-OAEP"
+                const hash = { name: "SHA-256" }
+
+                const importKey = async (key) =>
                 {
+                    const jwk = JSON.parse(atob(key))
+                    return await window.crypto.subtle.importKey("jwk", jwk, { name, hash }, true, jwk.key_ops )
+                }
+                const generateKeys = async () =>
+                {
+                    const publicExponent = new Uint8Array([0x01, 0x00, 0x01]) 
+                    const importedKeys = await window.crypto.subtle.generateKey({ name, hash, modulusLength: 1024, publicExponent }, true, ["encrypt", "decrypt"])
+                    
+                    const publicKey = btoa(JSON.stringify(await window.crypto.subtle.exportKey('jwk', importedKeys.publicKey)))
+                    const privateKey = btoa(JSON.stringify(await window.crypto.subtle.exportKey('jwk', importedKeys.privateKey)))
                     return { publicKey, privateKey }
                 }
-                const encrypt = (text, privateKey) =>
+                const encrypt = async (text, publicKey) =>
                 {
-
+                    const key = await importKey(publicKey)
+                    const buffer = await window.crypto.subtle.encrypt({ name }, key, new TextEncoder().encode(text))
+                    return btoa(String.fromCharCode(...new Uint8Array(buffer)))
                 }
-                const decrypt = (encrypted, publicKey) =>
+                const decrypt = async (encrypted, privateKey) =>
                 {
-
+                    const key = await importKey(privateKey)
+                    const buffer = Uint8Array.from(atob(encrypted), c => c.charCodeAt(0))
+                    return new TextDecoder().decode(await window.crypto.subtle.decrypt({ name }, key, buffer))
                 }
 
                 return { generateKeys, encrypt, decrypt }
@@ -211,7 +228,7 @@
                 Notify.push("prefix can't be empty")
                 throw new Error("prefix can't be empty")
             }
-            return `$$(${prefix}):`
+            return `$$${prefix}:`
         }
 
         const encryptMessageBox = () =>
