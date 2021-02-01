@@ -14,7 +14,7 @@ const keys = {
   '/channels/@me/**************': 'enter here some random passphrase'
 }
 ```
-- then you can just write your message and add '$$' at the end of it, then script will encrypt your message
+- then you can just write your message and when you add '$$' at the end of it, then script will encrypt your message
 - you need to press 'space' before pressing enter and sending the message, because discord doesnt recognize the change until user input
 
 it will automatically decrypt the messages
