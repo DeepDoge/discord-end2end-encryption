@@ -4,7 +4,7 @@ a friend wanted me to make it so here, discord end to end encryption
 
 # installation 
 - first you need `tampermonkey` extension on your browser
-- goto dashboard, click on `+` to create a new script
+- after doing that goto `tampermonkey dashboard`, click on `+` to create a new script
 - copy paste the code inside `discord-end2end-encryption.js`
 
 # usage
