@@ -73,6 +73,7 @@
             {
                 const reactEditor = (document.querySelector('[class*="modal-"]') ?? document).querySelector('form [class*="slateTextArea-"]')
                     .__reactInternalInstance$.memoizedProps.children.props.editor
+                reactEditor.moveAnchorToEndOfDocument()
                 for (let i = 0; i < this.messageBoxText.length; i++) reactEditor.deleteBackward()
                 reactEditor.insertText(value)
             }
