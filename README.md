@@ -55,5 +55,6 @@ made the code as clean as possible, separated the dom element selections and man
 - `link embeds` won't work because discord is creating them on their side so since they cant see the context of the message, no link embeds
 - its having trouble showing the `emojis`, right now. since discord is parsing them as `image` in the `textbox`
 - `upload modal` encryption not working if you press `enter` but the `textbox` has no `focus` (btw clicking on `upload button` works)  
+- also `embeds` like code, italic, bold etc not working atm
 
 not working on it for a while
