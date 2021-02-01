@@ -135,7 +135,7 @@
                 const onKeyDown = (event) =>
                 {
                     pressedKeys[event.key] = true
-                    if (pressedKeys['Enter'] && Object.keys(pressedKeys).length === 1) encryptMessageBox()
+                    if (pressedKeys['Enter'] && !pressedKeys['Shift']) encryptMessageBox()
                 }
                 const onKeyUp = (event) =>
                 {
