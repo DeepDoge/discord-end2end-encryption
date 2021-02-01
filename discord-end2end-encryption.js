@@ -19,10 +19,10 @@
         {
             getMessagesArray() 
             {
-                return Array.from(document.querySelectorAll('[class*="messagesWrapper-"] [class*="message-"]')) // where the message is including author and text itself etc
+                return Array.from(document.querySelectorAll('[class*="chatContent-"] [class*="messagesWrapper-"] [class*="messageContent-"]')) // selecting messageContent to select also replies and maybe things that might come with some future updates
                     .map(el =>
                     ({
-                        get textElement() { return el.querySelector('[class*="messageContent-"]') }, // where the text is
+                        get textElement() { return el }, // where the text is
 
                         get text() // text itself
                         {
