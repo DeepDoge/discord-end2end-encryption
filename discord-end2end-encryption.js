@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      0.1
 // @author       https://github.com/DeepDoge
-// @include      https://discord.com/channels/*
+// @include      https://discord.com/*
 // @grant        none
 // ==/UserScript==
 
