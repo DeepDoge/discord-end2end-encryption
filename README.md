@@ -13,23 +13,35 @@ a friend wanted me to make it so here, discord end to end encryption
 - first you need to add `path of the channel` with your `passphrase` to here inside the code (im too lazy to make an ui for it)
 
 ```js
-const keysStore = {
-  "/channels/@me/*************": [
+const keyStore = 
+{
+  "/channels/@me/*************":
     // you can have multiple passphrases for different prefixes, so if u change your passphrase you can still see the old messages
-    {
+    [
       // first passphrase is the default one and will be used to encrypt your messages
-      prefix: "$$2:", // prefix for the encrypted message so the script can know which passphrase to use
-      passphrase: "new (current) passphrase here",
-    },
-    {
+      {
+        // prefix for the encrypted message so the script can know which passphrase to use
+        // all prefixes are put inside $$(your prefix): so you can use any prefix you want safely
+        prefix: "2",
+        passphrase: "new (current) passphrase here",
+      },
       // old passphrase !!! you can remove this part if you dont have an old passphrases
-      prefix: "$$:",
-      passphrase: "old passphrases here",
-    }
-    // ...
-  ]
-}
+      {
+        prefix: "1",
+        passphrase: "old passphrases here",
+      },
+      // ...
+    ],
+  "channels/************": 
+  [
+    {
+      prefix: "🍕",
+      passphrase: "",
+    },
+  ],
+};
 ```
+
 - then just send the message and the script should encrypt it
 
 #

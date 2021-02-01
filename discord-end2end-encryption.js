@@ -11,18 +11,31 @@
 {
     const Main = () =>
     {
-        const keyStore = {
+        const keyStore =
+        {
             '/channels/@me/*************':
-                [ // you can have multiple passphrases for different prefixes, so if u change your passphrase you can still see the old messages
-                    { // first passphrase is the default one and will be used to encrypt your messages
-                        prefix: '$$2:', // prefix for the encrypted message so the script can know which passphrase to use
+                // you can have multiple passphrases for different prefixes, so if u change your passphrase you can still see the old messages
+                [
+                    // first passphrase is the default one and will be used to encrypt your messages
+                    {
+                        // prefix for the encrypted message so the script can know which passphrase to use
+                        // all prefixes are put inside $$(your prefix): so you can use any prefix you want safely
+                        prefix: '2',
                         passphrase: 'new (current) passphrase here'
                     },
-                    { // old passphrase !!! you can remove this part if you dont have an old passphrases
-                        prefix: '$$:',
+                    // old passphrase !!! you can remove this part if you dont have an old passphrases
+                    {
+                        prefix: '1',
                         passphrase: 'old passphrases here'
                     }
                     // ...
+                ],
+            'channels/************':
+                [
+                    {
+                        prefix: '🍕',
+                        passphrase: ''
+                    }
                 ]
         }
 
@@ -96,7 +109,7 @@
             {
                 if (!prefix) 
                 {
-                    Notify.push("prefix can't be empty") 
+                    Notify.push("prefix can't be empty")
                     throw new Error("prefix can't be empty")
                 }
                 return `$$${prefix}:`
@@ -122,7 +135,7 @@
                 const onKeyDown = (event) =>
                 {
                     pressedKeys[event.key] = true
-                    if (pressedKeys['Enter'] && Object.keys(pressedKeys).length === 1) encryptMessageBox() 
+                    if (pressedKeys['Enter'] && Object.keys(pressedKeys).length === 1) encryptMessageBox()
                 }
                 const onKeyUp = (event) =>
                 {
@@ -131,7 +144,7 @@
 
                 document.addEventListener('visibilitychange', () => pressedKeys = {})
                 window.addEventListener('blur', () => pressedKeys = {})
-                
+
                 let enterEventElementCache
                 while (true)
                 {
@@ -140,7 +153,7 @@
                     const enterEventElement = domActions.messageBoxElementToListenForEnterEvent
                     if (!enterEventElement) continue
                     if (enterEventElement === enterEventElementCache) continue
-                    
+
                     enterEventElementCache = enterEventElement
                     pressedKeys = {}
 
@@ -156,7 +169,7 @@
             {
                 const keys = keyStore[location.pathname]
                 if (!keys) return
-                
+
                 const messages = domActions.getMessagesArray()
                 for (const message of messages)
                 {
