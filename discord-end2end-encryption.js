@@ -9,7 +9,7 @@
 
 (() =>
 {
-    const Main = () =>
+    const Main = async () =>
     {
         const domActions = (() =>
         {
@@ -154,22 +154,22 @@
                     const buffer = await window.crypto.subtle.exportKey('raw', importedKey)
                     return btoa(String.fromCharCode(...new Uint8Array(buffer)))
                 }
-                const encrypt = async (text, passphrase) =>
+                const encrypt = async (text, key) =>
                 {
                     const iv = window.crypto.getRandomValues(new Uint8Array(12))
                     const algorithm = { iv, name }
-                    const key = await importKey(passphrase)
-                    const buffer = await window.crypto.subtle.encrypt(algorithm, key, new TextEncoder().encode(text))
+                    const importedKey = await importKey(key)
+                    const buffer = await window.crypto.subtle.encrypt(algorithm, importedKey, new TextEncoder().encode(text))
                     return `${btoa(String.fromCharCode(...iv))}-${btoa(String.fromCharCode(...new Uint8Array(buffer)))}`
                 }
-                const decrypt = async (encrypted, passphrase) =>
+                const decrypt = async (encrypted, key) =>
                 {
                     encrypted = encrypted.split('-')
                     const iv = Uint8Array.from(atob(encrypted[0]), c => c.charCodeAt(0))
                     const algorithm = { iv, name }
-                    const key = await importKey(passphrase)
+                    const importedKey = await importKey(key)
                     const buffer = Uint8Array.from(atob(encrypted[1]), c => c.charCodeAt(0))
-                    return new TextDecoder().decode(await window.crypto.subtle.decrypt(algorithm, key, buffer))
+                    return new TextDecoder().decode(await window.crypto.subtle.decrypt(algorithm, importedKey, buffer))
                 }
                 return { encrypt, decrypt, generateKey }
             })()
@@ -182,28 +182,28 @@
                 const importKey = async (key) =>
                 {
                     const jwk = JSON.parse(atob(key))
-                    return await window.crypto.subtle.importKey("jwk", jwk, { name, hash }, true, jwk.key_ops )
+                    return await window.crypto.subtle.importKey("jwk", jwk, { name, hash }, true, jwk.key_ops)
                 }
                 const generateKeys = async () =>
                 {
-                    const publicExponent = new Uint8Array([0x01, 0x00, 0x01]) 
+                    const publicExponent = new Uint8Array([0x01, 0x00, 0x01])
                     const importedKeys = await window.crypto.subtle.generateKey({ name, hash, modulusLength: 1024, publicExponent }, true, ["encrypt", "decrypt"])
-                    
+
                     const publicKey = btoa(JSON.stringify(await window.crypto.subtle.exportKey('jwk', importedKeys.publicKey)))
                     const privateKey = btoa(JSON.stringify(await window.crypto.subtle.exportKey('jwk', importedKeys.privateKey)))
                     return { publicKey, privateKey }
                 }
                 const encrypt = async (text, publicKey) =>
                 {
-                    const key = await importKey(publicKey)
-                    const buffer = await window.crypto.subtle.encrypt({ name }, key, new TextEncoder().encode(text))
+                    const importedKey = await importKey(publicKey)
+                    const buffer = await window.crypto.subtle.encrypt({ name }, importedKey, new TextEncoder().encode(text))
                     return btoa(String.fromCharCode(...new Uint8Array(buffer)))
                 }
                 const decrypt = async (encrypted, privateKey) =>
                 {
-                    const key = await importKey(privateKey)
+                    const importedKey = await importKey(privateKey)
                     const buffer = Uint8Array.from(atob(encrypted), c => c.charCodeAt(0))
-                    return new TextDecoder().decode(await window.crypto.subtle.decrypt({ name }, key, buffer))
+                    return new TextDecoder().decode(await window.crypto.subtle.decrypt({ name }, importedKey, buffer))
                 }
 
                 return { generateKeys, encrypt, decrypt }
@@ -212,14 +212,41 @@
             return { AES, RSA }
         })()
 
-        const generateChannelPassphrase = (channelId) =>
+        const localStorage = (() =>
         {
-            return { prefix, passphrase }
-        }
-        const getChannelPassphrases = (channelId) =>
+            function getLocalStoragePropertyDescriptor()
+            {
+                const iframe = document.createElement('iframe')
+                document.head.append(iframe)
+                const pd = Object.getOwnPropertyDescriptor(iframe.contentWindow, 'localStorage')
+                iframe.remove()
+                return pd
+            }
+
+            const localStorage = getLocalStoragePropertyDescriptor().get.call(window)
+
+            return localStorage
+        })()
+
+        const generateChannelKey = async (channelId) =>
         {
-            return []
+            const key = {
+                key: await crypto.AES.generateKey(),
+                prefix: btoa(String.fromCharCode(...window.crypto.getRandomValues(new Uint8Array(8))))
+            }
+
+            const keys = getChannelKey(channelId)
+            keys.unshift(key)
+            localStorage.setItem(`__end2end-key-${channelId}`, keys)
+
+            return key
         }
+        const getChannelKey = (channelId) =>
+        {
+            return JSON.parse(localStorage.getItem(`__end2end-key-${channelId}`))
+        }
+
+        const myKeys = crypto.RSA.generateKey()
 
         const safePrefix = (prefix) => 
         {
@@ -233,13 +260,13 @@
 
         const encryptMessageBox = () =>
         {
-            const keys = getChannelPassphrases(location.pathname)
+            const keys = getChannelKey(location.pathname)
             if (!keys) return
 
             const text = domActions.messageBox.text
             if (!text) return
 
-            const encrypted = encrypt(text, keys[0].passphrase).toString()
+            const encrypted = crypto.AES.encrypt(text, keys[0].key).toString()
             console.log('encrypted', text, encrypted)
 
             domActions.messageBox.text = safePrefix(keys[0].prefix) + encrypted
@@ -270,7 +297,7 @@
                 message.prefixElement = prefixElement
             }
 
-            const keys = getChannelPassphrases(location.pathname)
+            const keys = getChannelKey(location.pathname)
             if (!keys) return
 
             const messages = domActions.getMessagesArray()
@@ -292,7 +319,7 @@
                 {
                     // decrypted the message and update it
                     console.log('decrypting', encrypted)
-                    const text = decrypt(encrypted, key.passphrase) // decrypt the text
+                    const text = crypto.AES.decrypt(encrypted, key.passphrase) // decrypt the text
                     message.text = text // change the dom
                     addPrefixElement(message)
                     message.element.__textCache = text
@@ -307,14 +334,11 @@
             }
         }
 
-        (async () =>
+        while (true)
         {
-            while (true)
-            {
-                await decryptMessages()
-                await new Promise((resolver, reject) => setTimeout(resolver, 100))
-            }
-        })()
+            await decryptMessages()
+            await new Promise((resolver, reject) => setTimeout(resolver, 100))
+        }
     }
 
     const Notify = (() =>
