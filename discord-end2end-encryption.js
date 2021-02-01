@@ -74,80 +74,92 @@
                     }))
             }
 
-            let registerBeforeMessageSendEventListenerOnce = false
+            let messageBoxElement = null
             const messageBox = {
-                registerBeforeSendEventListener(listener)
-                {
-                    if (registerBeforeMessageSendEventListenerOnce) throw new Error('addBeforeMessageSendEventListener can only run once')
-                    registerBeforeMessageSendEventListenerOnce = true
-
-                    const addListener = (element) =>
-                    {
-                        element.addEventListener('keydown', onKeyDown)
-                        element.addEventListener('keyup', onKeyUp)
-                    }
-
-                    const removeListener = (element) =>
-                    {
-                        element.removeEventListener('keydown', onKeyDown)
-                        element.removeEventListener('keyup', onKeyUp)
-                    }
-
-                    let pressedKeys = {}
-
-                    const onKeyDown = (event) =>
-                    {
-                        pressedKeys[event.key] = true
-                        eventFunc()
-                    }
-
-                    const onKeyUp = (event) =>
-                    {
-                        delete pressedKeys[event.key]
-                    }
-
-                    window.addEventListener('blur', () => pressedKeys = {})
-                    document.addEventListener('visibilitychange', () => pressedKeys = {})
-
-
-                    const eventFunc = () =>
-                    {
-                        if (pressedKeys['Enter'] && !pressedKeys['Shift']) listener()
-                    }
-
-                    (async () =>
-                    {
-                        let _elementCache = null
-                        while (true)
-                        {
-                            await new Promise((resolver, reject) => setTimeout(resolver, 500))
-
-                            const element = document.querySelector('[class*="modal-"] [class*="textArea-"]') ??
-                                document.querySelector('[class*="message-"] [class*="textArea-"]') ??
-                                document.querySelector('form[class*="form-"]')
-                            if (_elementCache === element) continue
-
-                            if (_elementCache) removeListener(_elementCache)
-                            addListener(element)
-                            _elementCache = element
-                        }
-                    })()
-                },
+                beforeSendEventListener: null,
+                get element() { return messageBoxElement },
                 get text() // message input
                 {
-                    return Array.from((document.querySelector('[class*="modal-"]') ?? document).querySelectorAll('[class*="slateTextArea-"] [data-slate-string]'))
+                    return Array.from(this.element.querySelectorAll('[class*="slateTextArea-"] [data-slate-string]'))
                         .map((line) => line.textContent).join('\n')
 
                 },
                 set text(value)
                 {
-                    const reactEditor = (document.querySelector('[class*="modal-"]') ?? document).querySelector('[class*="slateTextArea-"]')
+                    const reactEditor = this.element.querySelector('[class*="slateTextArea-"]')
                         .__reactInternalInstance$.memoizedProps.children.props.editor
                     reactEditor.moveAnchorToEndOfDocument()
                     for (let i = 0; i < 2000; i++) reactEditor.deleteBackward()
                     reactEditor.insertText(value)
                 }
-            }
+            };
+            // MessageBox function
+            (async () =>
+            {
+                let pressedKeys = {}
+                const resetPressedKeys = () => pressedKeys = {}
+
+                const addListener = (element) =>
+                {
+                    element.addEventListener('keydown', onKeyDown)
+                    element.addEventListener('keyup', onKeyUp)
+                }
+
+                const removeListener = (element) =>
+                {
+                    element.removeEventListener('keydown', onKeyDown)
+                    element.removeEventListener('keyup', onKeyUp)
+                }
+
+                const onKeyDown = (event) =>
+                {
+                    pressedKeys[event.key] = true
+                    if (pressedKeys['Enter'] && !pressedKeys['Shift']) 
+                    {
+                        resetPressedKeys()
+                        eventFunc()
+                    }
+                }
+
+                const onKeyUp = (event) =>
+                {
+                    delete pressedKeys[event.key]
+                }
+
+                window.addEventListener('blur', resetPressedKeys)
+                document.addEventListener('visibilitychange', resetPressedKeys)
+
+                const eventFunc = () =>
+                {
+                    if (messageBox.beforeSendEventListener) messageBox.beforeSendEventListener()
+                }
+
+                const getUploadModalMessageBox = () => document.querySelector('[class*="uploadModal-"]')
+                const getEditMessageBox = () => document.querySelector('[class*="message-"] [class*="textArea-"]:focus-within')
+                const getChatMessageBox = () => document.querySelector('form[class*="form-"]:focus-within')
+
+                let _elementCache = null
+                while (true)
+                {
+                    await new Promise((resolver, reject) => setTimeout(resolver, 500))
+
+                    messageBoxElement = getUploadModalMessageBox() ?? getEditMessageBox() ?? getChatMessageBox()
+                    if (_elementCache === messageBoxElement) continue
+                    if (_elementCache) removeListener(_elementCache)
+                    if (_elementCache === getUploadModalMessageBox())
+                    {
+                        messageBoxElement.querySelector('button[type="submit"]')?.removeEventListener('click', eventFunc)
+                    }
+                    _elementCache = messageBoxElement
+                    if (!messageBoxElement) continue
+                    addListener(messageBoxElement)
+
+                    if (messageBox.beforeSendEventListener && messageBoxElement === getUploadModalMessageBox())
+                    {
+                        messageBoxElement.querySelector('button[type="submit"]').addEventListener('click', eventFunc)
+                    }
+                }
+            })()
 
             return { getMessagesArray, messageBox }
         })()
@@ -189,7 +201,7 @@
                 domActions.messageBox.text = safePrefix(keys[0].prefix) + encrypted
             }
 
-            domActions.messageBox.registerBeforeSendEventListener(encryptMessageBox)
+            domActions.messageBox.beforeSendEventListener = encryptMessageBox
 
             const refreshMessages = async () =>
             {
@@ -207,7 +219,7 @@
                     message.element.__textCache = rawText // btw also setting this after the decryption at the bottom
 
                     const key = keys.find((key) => rawText.startsWith(safePrefix(key.prefix)))  // check if the message has the prefix
-                    if (!key) continue // skip if the key is undefined like
+                    if (!key) continue // skip if it doesnt fit with any prefix
 
                     const encrypted = rawText.substr(safePrefix(key.prefix).length) // get text, remove the Prefix
 
@@ -217,26 +229,7 @@
                         console.log('decrypting', encrypted)
                         const text = decrypt(encrypted, key.passphrase) // decrypt the text
                         message.text = text // change the dom
-
-                        // add 'decrypted' chip before the message
-                        const prefixElement = document.createElement('span')
-                        prefixElement.style.marginRight = '2px'
-                        prefixElement.style.padding = '2px'
-                        prefixElement.style.borderRadius = '5px'
-                        prefixElement.style.background = '#7289DA'
-                        prefixElement.style.color = '#fff'
-                        prefixElement.style.fontFamily = 'arial'
-                        prefixElement.style.fontSize = '10px'
-                        prefixElement.style.fontWeight = 'bold'
-
-                        const img = document.createElement('img')
-                        img.src = 'https://discord.com/assets/8b7eb8b25468313916d2e5ec3727cd2d.svg'
-                        img.style.height = '10px'
-                        img.style.width = '10px'
-                        prefixElement.appendChild(img)
-
-                        message.prefixElement = prefixElement
-
+                        addPrefixElement(message)
                         message.element.__textCache = text
                         console.log('decrypted', encrypted, text)
                     }
@@ -247,6 +240,28 @@
 
                     await new Promise((resolver, reject) => setTimeout(resolver, 10))
                 }
+            }
+
+            const addPrefixElement = (message) =>
+            {
+                // add 'decrypted' chip before the message
+                const prefixElement = document.createElement('span')
+                prefixElement.style.marginRight = '2px'
+                prefixElement.style.padding = '2px'
+                prefixElement.style.borderRadius = '5px'
+                prefixElement.style.background = '#7289DA'
+                prefixElement.style.color = '#fff'
+                prefixElement.style.fontFamily = 'arial'
+                prefixElement.style.fontSize = '10px'
+                prefixElement.style.fontWeight = 'bold'
+
+                const img = document.createElement('img')
+                img.src = 'https://discord.com/assets/8b7eb8b25468313916d2e5ec3727cd2d.svg'
+                img.style.height = '10px'
+                img.style.width = '10px'
+                prefixElement.appendChild(img)
+
+                message.prefixElement = prefixElement
             }
 
             (async () =>
