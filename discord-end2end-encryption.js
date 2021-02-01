@@ -132,7 +132,7 @@
                     pressedKeys = {}
 
                     enterEventElementCache?.removeEventListener('keydown', onKeyDown)
-                    enterEventElementCache?.removeEventListener('keyup', onKeyDown)
+                    enterEventElementCache?.removeEventListener('keyup', onKeyUp)
 
                     enterEventElement.addEventListener('keydown', onKeyDown)
                     enterEventElement.addEventListener('keyup', onKeyUp)
