@@ -49,10 +49,17 @@
                     }))
             },
 
-            get messageBoxText() { return document.querySelector('[class*="slateTextArea"] [data-slate-string]')?.textContent }, // message input
+            get messageBoxText() // message input
+            {
+                return Array.from((document.querySelector('[class*="modal-"]') ?? document).querySelectorAll('[class*="slateTextArea"] [data-slate-string]'))
+                    .map((line) => line.textContent).join('\n')
+
+            },
             set messageBoxText(value) 
             {
-                document.querySelector('[class*="slateTextArea"] [data-slate-string]').textContent = value
+                const lines = (document.querySelector('[class*="modal-"]') ?? document).querySelectorAll('[data-slate-object]')
+                for (let i = 1; i < lines.length; i++) lines[i].querySelector('[class*="slateTextArea"] [data-slate-string]').textContent = ''
+                lines[0].querySelector('[class*="slateTextArea"] [data-slate-string]').textContent = value
                 // discord doesnt update the text at js side until you update the text with key press so
                 Notify.push('press "space" before sending the messages')
             }
@@ -95,9 +102,9 @@
                 {
                     if (!message.text) continue // check if the message is undefined like
                     if (!message.text.startsWith(encryptedMessagePrefix)) continue // check if the message has the prefix
-                    
+
                     const encrypted = message.text.substr(encryptedMessagePrefix.length) // get text, remove the Prefix
-                    
+
                     if (message.textElement.hasAttribute('__tried-to-decrypt')) continue // skip if its already been tried to decrypted, so it skips the errors. also discord should remove this when the message is edited
                     message.textElement.setAttribute('__tried-to-decrypt', '')
                     try

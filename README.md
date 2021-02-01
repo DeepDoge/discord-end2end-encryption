@@ -24,4 +24,3 @@ made the code as clean as possible, separated the dom element selections and man
 
 # known issues 
 - link embeds won't work because discord is creating them on their side so since they cant see the context of the message, no link embeds
-- while sending images first you need to type the message press `space` and stuff then add the picture, because i didnt add support for `upload image` dialog text area, you can if you want to, code is there
