@@ -52,11 +52,11 @@
                         },
                         set text(value) { Array.from(this.textElement.childNodes).find((child) => child.nodeType === 3).nodeValue = value },
 
-                        get prefixElement() { return this.textElement.querySelector('shiba-discord-encrypt-decrypt-prefixEl') }, // custom element right before the text
+                        get prefixElement() { return this.textElement.querySelector('[__prefixEl]') }, // custom element right before the text
                         set prefixElement(prefixEl)
                         {
                             if (this.prefixElement) this.prefixElement.remove()
-                            prefixEl.setAttribute('shiba-discord-encrypt-decrypt-prefixEl', '')
+                            prefixEl.setAttribute('__prefixEl', '')
                             this.textElement.insertBefore(prefixEl, this.textElement.firstChild)
                         }
                     }))
