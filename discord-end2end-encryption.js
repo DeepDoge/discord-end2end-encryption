@@ -11,34 +11,6 @@
 {
     const Main = () =>
     {
-        const keyStore =
-        {
-            '/channels/@me/*************':
-                // you can have multiple passphrases for different prefixes, so if u change your passphrase you can still see the old messages
-                [
-                    // first passphrase is the default one and will be used to encrypt your messages
-                    {
-                        // prefix for the encrypted message so the script can know which passphrase to use
-                        // all prefixes are put inside $$(your prefix): so you can use any prefix you want safely
-                        prefix: '2',
-                        passphrase: 'new (current) passphrase here'
-                    },
-                    // old passphrase !!! you can remove this part if you dont have an old passphrases
-                    {
-                        prefix: '1',
-                        passphrase: 'old passphrases here'
-                    }
-                    // ...
-                ],
-            'channels/************':
-                [
-                    {
-                        prefix: '🍕',
-                        passphrase: ''
-                    }
-                ]
-        }
-
         const domActions = (() =>
         {
             const getMessagesArray = () =>
@@ -164,114 +136,127 @@
             return { getMessagesArray, messageBox }
         })()
 
-        // Script
-        (() =>
+        const keyStore = (() =>
         {
-            const encrypt = (text, passphrase) =>
+            const generateIdenity = () =>
             {
-                return CryptoJS.AES.encrypt(text, passphrase)
+                return { publicKey, privateKey }
             }
+            const generateChannelPassphrase = (channelId) =>
+            {
+                return { prefix, passphrase }
+            }
+            const getChannelPassphrases = (channelId) =>
+            {
+                return []
+            }
+        })()
 
-            const decrypt = (encrypted, passphrase) =>
+
+        const encrypt = (text, passphrase) =>
+        {
+            return CryptoJS.AES.encrypt(text, passphrase)
+        }
+
+        const decrypt = (encrypted, passphrase) =>
+        {
+            return CryptoJS.AES.decrypt(encrypted, passphrase).toString(CryptoJS.enc.Utf8)
+        }
+
+        const safePrefix = (prefix) => 
+        {
+            if (!prefix) 
             {
-                return CryptoJS.AES.decrypt(encrypted, passphrase).toString(CryptoJS.enc.Utf8)
+                Notify.push("prefix can't be empty")
+                throw new Error("prefix can't be empty")
             }
-                    
-            const safePrefix = (prefix) => 
+            return `$$${prefix}:`
+        }
+
+        const encryptMessageBox = () =>
+        {
+            const keys = keyStore.getChannelPassphrases(location.pathname)
+            if (!keys) return
+
+            const text = domActions.messageBox.text
+            if (!text) return
+
+            const encrypted = encrypt(text, keys[0].passphrase).toString()
+            console.log('encrypted', text, encrypted)
+
+            domActions.messageBox.text = safePrefix(keys[0].prefix) + encrypted
+        }
+
+        domActions.messageBox.beforeSendEventListener = encryptMessageBox
+
+        const refreshMessages = async () =>
+        {
+            const keys = keyStore.getChannelPassphrases(location.pathname)
+            if (!keys) return
+
+            const messages = domActions.getMessagesArray()
+            for (const message of messages)
             {
-                if (!prefix) 
+                const rawText = message.text
+                if (!rawText) continue // skip if the message is undefined like
+
+                if (message.element.__textCache === rawText) continue // skip if its already been tried to decrypted, so it skips the errors
+                if (message.prefixElement) message.prefixElement = null
+                message.element.__textCache = rawText // btw also setting this after the decryption at the bottom
+
+                const key = keys.find((key) => rawText.startsWith(safePrefix(key.prefix)))  // check if the message has the prefix
+                if (!key) continue // skip if it doesnt fit with any prefix
+
+                const encrypted = rawText.substr(safePrefix(key.prefix).length) // get text, remove the Prefix
+
+                try
                 {
-                    Notify.push("prefix can't be empty")
-                    throw new Error("prefix can't be empty")
+                    // decrypted the message and update it
+                    console.log('decrypting', encrypted)
+                    const text = decrypt(encrypted, key.passphrase) // decrypt the text
+                    message.text = text // change the dom
+                    addPrefixElement(message)
+                    message.element.__textCache = text
+                    console.log('decrypted', encrypted, text)
                 }
-                return `$$${prefix}:`
-            }
-
-            const encryptMessageBox = () =>
-            {
-                const keys = keyStore[location.pathname]
-                if (!keys) return
-
-                const text = domActions.messageBox.text
-                if (!text) return
-
-                const encrypted = encrypt(text, keys[0].passphrase).toString()
-                console.log('encrypted', text, encrypted)
-
-                domActions.messageBox.text = safePrefix(keys[0].prefix) + encrypted
-            }
-
-            domActions.messageBox.beforeSendEventListener = encryptMessageBox
-
-            const refreshMessages = async () =>
-            {
-                const keys = keyStore[location.pathname]
-                if (!keys) return
-
-                const messages = domActions.getMessagesArray()
-                for (const message of messages)
+                catch (ex)
                 {
-                    const rawText = message.text
-                    if (!rawText) continue // skip if the message is undefined like
-
-                    if (message.element.__textCache === rawText) continue // skip if its already been tried to decrypted, so it skips the errors
-                    if (message.prefixElement) message.prefixElement = null
-                    message.element.__textCache = rawText // btw also setting this after the decryption at the bottom
-
-                    const key = keys.find((key) => rawText.startsWith(safePrefix(key.prefix)))  // check if the message has the prefix
-                    if (!key) continue // skip if it doesnt fit with any prefix
-
-                    const encrypted = rawText.substr(safePrefix(key.prefix).length) // get text, remove the Prefix
-
-                    try
-                    {
-                        // decrypted the message and update it
-                        console.log('decrypting', encrypted)
-                        const text = decrypt(encrypted, key.passphrase) // decrypt the text
-                        message.text = text // change the dom
-                        addPrefixElement(message)
-                        message.element.__textCache = text
-                        console.log('decrypted', encrypted, text)
-                    }
-                    catch (ex)
-                    {
-                        console.error('decryption failed', ex)
-                    }
-
-                    await new Promise((resolver, reject) => setTimeout(resolver, 10))
+                    console.error('decryption failed', ex)
                 }
+
+                await new Promise((resolver, reject) => setTimeout(resolver, 10))
             }
+        }
 
-            const addPrefixElement = (message) =>
+        const addPrefixElement = (message) =>
+        {
+            // add 'decrypted' chip before the message
+            const prefixElement = document.createElement('span')
+            prefixElement.style.marginRight = '2px'
+            prefixElement.style.padding = '2px'
+            prefixElement.style.borderRadius = '5px'
+            prefixElement.style.background = '#7289DA'
+            prefixElement.style.color = '#fff'
+            prefixElement.style.fontFamily = 'arial'
+            prefixElement.style.fontSize = '10px'
+            prefixElement.style.fontWeight = 'bold'
+
+            const img = document.createElement('img')
+            img.src = 'https://discord.com/assets/8b7eb8b25468313916d2e5ec3727cd2d.svg'
+            img.style.height = '10px'
+            img.style.width = '10px'
+            prefixElement.appendChild(img)
+
+            message.prefixElement = prefixElement
+        }
+
+        (async () =>
+        {
+            while (true)
             {
-                // add 'decrypted' chip before the message
-                const prefixElement = document.createElement('span')
-                prefixElement.style.marginRight = '2px'
-                prefixElement.style.padding = '2px'
-                prefixElement.style.borderRadius = '5px'
-                prefixElement.style.background = '#7289DA'
-                prefixElement.style.color = '#fff'
-                prefixElement.style.fontFamily = 'arial'
-                prefixElement.style.fontSize = '10px'
-                prefixElement.style.fontWeight = 'bold'
-
-                const img = document.createElement('img')
-                img.src = 'https://discord.com/assets/8b7eb8b25468313916d2e5ec3727cd2d.svg'
-                img.style.height = '10px'
-                img.style.width = '10px'
-                prefixElement.appendChild(img)
-
-                message.prefixElement = prefixElement
+                await refreshMessages()
+                await new Promise((resolver, reject) => setTimeout(resolver, 1000))
             }
-
-            (async () =>
-            {
-                while (true)
-                {
-                    await refreshMessages()
-                    await new Promise((resolver, reject) => setTimeout(resolver, 1000))
-                }
-            })()
         })()
     }
 
