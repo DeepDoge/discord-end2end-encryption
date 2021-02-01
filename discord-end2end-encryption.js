@@ -64,17 +64,16 @@
 
             get messageBoxText() // message input
             {
-                return Array.from((document.querySelector('[class*="modal-"]') ?? document).querySelectorAll('[class*="slateTextArea"] [data-slate-string]'))
+                return Array.from((document.querySelector('[class*="modal-"]') ?? document).querySelectorAll('[class*="channelTextArea-"] [class*="slateTextArea-"] [data-slate-string]'))
                     .map((line) => line.textContent).join('\n')
 
             },
             set messageBoxText(value)
             {
-                const lines = (document.querySelector('[class*="modal-"]') ?? document).querySelectorAll('[data-slate-object]')
-                for (let i = 1; i < lines.length; i++) lines[i].querySelector('[class*="slateTextArea"] [data-slate-string]').textContent = ''
-                lines[0].querySelector('[class*="slateTextArea"] [data-slate-string]').textContent = value
-                // discord doesnt update the text at js side until you update the text with key press so
-                Notify.push('press "space" before sending the messages')
+                const reactEditor = (document.querySelector('[class*="modal-"]') ?? document).querySelector('[class*="channelTextArea-"] [class*="slateTextArea-"]')
+                    .__reactInternalInstance$.memoizedProps.children.props.editor
+                for (let i = 0; i < this.messageBoxText.length; i++) reactEditor.deleteBackward()
+                reactEditor.insertText(value)
             }
         }
 
@@ -100,7 +99,7 @@
                 if (!domActions.messageBoxText.endsWith(toEncryptMessageSuffix)) return
 
                 const text = domActions.messageBoxText.substr(0, domActions.messageBoxText.length - toEncryptMessageSuffix.length)
-                const encrypted = encrypt(text, keys[0].passphrase)
+                const encrypted = encrypt(text, keys[0].passphrase).toString()
                 console.log('encrypted', text, encrypted)
 
                 domActions.messageBoxText = keys[0].prefix + encrypted
