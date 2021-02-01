@@ -92,6 +92,16 @@
         // Script
         (() =>
         {
+            const safePrefix = (prefix) => 
+            {
+                if (!prefix) 
+                {
+                    Notify.push("prefix can't be empty") 
+                    throw new Error("prefix can't be empty")
+                }
+                return `$$${prefix}:`
+            }
+
             const encryptMessageBox = () =>
             {
                 const keys = keyStore[location.pathname]
@@ -103,7 +113,7 @@
                 const encrypted = encrypt(text, keys[0].passphrase).toString()
                 console.log('encrypted', text, encrypted)
 
-                domActions.messageBoxText = keys[0].prefix + encrypted
+                domActions.messageBoxText = safePrefix(keys[0].prefix) + encrypted
             }
 
             (async () =>
@@ -145,17 +155,17 @@
             const refreshMessages = async () =>
             {
                 const keys = keyStore[location.pathname]
-
                 if (!keys) return
+                
                 const messages = domActions.getMessagesArray()
                 for (const message of messages)
                 {
                     if (!message.text) continue // skip if the message is undefined like
 
-                    const key = keys.find((key) => message.text.startsWith(key.prefix))  // check if the message has the prefix
+                    const key = keys.find((key) => message.text.startsWith(safePrefix(key.prefix)))  // check if the message has the prefix
                     if (!key) continue // skip if the key is undefined like
 
-                    const encrypted = message.text.substr(key.prefix.length) // get text, remove the Prefix
+                    const encrypted = message.text.substr(safePrefix(key.prefix).length) // get text, remove the Prefix
 
                     if (message.textElement.hasAttribute('__tried-to-decrypt')) continue // skip if its already been tried to decrypted, so it skips the errors. also discord should remove this when the message is edited
                     message.textElement.setAttribute('__tried-to-decrypt', '')
