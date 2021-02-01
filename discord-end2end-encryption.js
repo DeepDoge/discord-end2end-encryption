@@ -11,9 +11,7 @@
 {
     const Main = () =>
     {
-        const toEncryptMessageSuffix = '$$' // this will trigger the encryption. you can change it if you want to
-
-        const keysStore = {
+        const keyStore = {
             '/channels/@me/*************':
                 [ // you can have multiple passphrases for different prefixes, so if u change your passphrase you can still see the old messages
                     { // first passphrase is the default one and will be used to encrypt your messages
@@ -62,15 +60,18 @@
                     }))
             },
 
+
+            get messageBoxElementToListenForEnterEvent() { return (document.querySelector('[class*="modal-"]') ?? document).querySelector('form[class*="form-"]') },
+
             get messageBoxText() // message input
             {
-                return Array.from((document.querySelector('[class*="modal-"]') ?? document).querySelectorAll('[class*="channelTextArea-"] [class*="slateTextArea-"] [data-slate-string]'))
+                return Array.from((document.querySelector('[class*="modal-"]') ?? document).querySelectorAll('form [class*="slateTextArea-"] [data-slate-string]'))
                     .map((line) => line.textContent).join('\n')
 
             },
             set messageBoxText(value)
             {
-                const reactEditor = (document.querySelector('[class*="modal-"]') ?? document).querySelector('[class*="channelTextArea-"] [class*="slateTextArea-"]')
+                const reactEditor = (document.querySelector('[class*="modal-"]') ?? document).querySelector('form [class*="slateTextArea-"]')
                     .__reactInternalInstance$.memoizedProps.children.props.editor
                 for (let i = 0; i < this.messageBoxText.length; i++) reactEditor.deleteBackward()
                 reactEditor.insertText(value)
@@ -87,27 +88,59 @@
             return CryptoJS.AES.decrypt(encrypted, passphrase).toString(CryptoJS.enc.Utf8)
         }
 
-        // Start
+        // Script
         (() =>
         {
-            const checkTextbox = () =>
+            const encryptMessageBox = () =>
             {
-                const keys = keysStore[location.pathname]
-
+                const keys = keyStore[location.pathname]
                 if (!keys) return
-                if (!domActions.messageBoxText) return
-                if (!domActions.messageBoxText.endsWith(toEncryptMessageSuffix)) return
 
-                const text = domActions.messageBoxText.substr(0, domActions.messageBoxText.length - toEncryptMessageSuffix.length)
+                const text = domActions.messageBoxText
+                if (!text) return
+
                 const encrypted = encrypt(text, keys[0].passphrase).toString()
                 console.log('encrypted', text, encrypted)
 
                 domActions.messageBoxText = keys[0].prefix + encrypted
             }
 
+            (async () =>
+            {
+                let pressedKeys
+                const onKeyDown = (event) =>
+                {
+                    pressedKeys[event.key] = true
+                    if (pressedKeys['Enter'] && Object.keys(pressedKeys).length === 1) encryptMessageBox() 
+                }
+                const onKeyUp = (event) =>
+                {
+                    delete pressedKeys[event.key]
+                }
+                
+                let enterEventElementCache
+                while (true)
+                {
+                    await new Promise((resolver, reject) => setTimeout(resolver, 500))
+
+                    const enterEventElement = domActions.messageBoxElementToListenForEnterEvent
+                    if (!enterEventElement) continue
+                    if (enterEventElement === enterEventElementCache) continue
+                    
+                    enterEventElementCache = enterEventElement
+                    pressedKeys = {}
+
+                    enterEventElementCache?.removeEventListener('keydown', onKeyDown)
+                    enterEventElementCache?.removeEventListener('keyup', onKeyDown)
+
+                    enterEventElement.addEventListener('keydown', onKeyDown)
+                    enterEventElement.addEventListener('keyup', onKeyUp)
+                }
+            })()
+
             const refreshMessages = async () =>
             {
-                const keys = keysStore[location.pathname]
+                const keys = keyStore[location.pathname]
 
                 if (!keys) return
                 const messages = domActions.getMessagesArray()
@@ -159,14 +192,6 @@
                 {
                     await refreshMessages()
                     await new Promise((resolver, reject) => setTimeout(resolver, 1000))
-                }
-            })();
-            (async () =>
-            {
-                while (true)
-                {
-                    checkTextbox()
-                    await new Promise((resolver, reject) => setTimeout(resolver, 500))
                 }
             })()
         })()

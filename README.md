@@ -30,9 +30,7 @@ const keysStore = {
   ]
 }
 ```
-
-- then you can just write your message and when you add `$$` at the end of it, then script will encrypt your message
-- you need to press `space` before pressing enter and sending the message, because discord doesnt recognize the change until user input
+- then just send the message and the script should encrypt it
 
 #
 
