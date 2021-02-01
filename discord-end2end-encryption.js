@@ -31,13 +31,13 @@
 
                             while (child)
                             {
-                                if (child.nodeType == 3) texts.push(child.data)
+                                if (child.nodeType === 3) texts.push(child.data)
                                 child = child.nextSibling
                             }
 
                             return texts.join("")
                         },
-                        set text(value) { this.textElement.firstChild.nodeValue = value },
+                        set text(value) { Array.from(this.textElement.childNodes).find((child) => child.nodeType === 3).nodeValue = value },
 
                         get prefixElement() { return this.textElement.querySelector('shiba-discord-encrypt-decrypt-prefixEl') }, // custom element right before the text
                         set prefixElement(prefixEl) 
