@@ -164,19 +164,19 @@
             return { getMessagesArray, messageBox }
         })()
 
-        const encrypt = (text, passphrase) =>
-        {
-            return CryptoJS.AES.encrypt(text, passphrase)
-        }
-
-        const decrypt = (encrypted, passphrase) =>
-        {
-            return CryptoJS.AES.decrypt(encrypted, passphrase).toString(CryptoJS.enc.Utf8)
-        }
-
         // Script
         (() =>
         {
+            const encrypt = (text, passphrase) =>
+            {
+                return CryptoJS.AES.encrypt(text, passphrase)
+            }
+
+            const decrypt = (encrypted, passphrase) =>
+            {
+                return CryptoJS.AES.decrypt(encrypted, passphrase).toString(CryptoJS.enc.Utf8)
+            }
+                    
             const safePrefix = (prefix) => 
             {
                 if (!prefix) 
