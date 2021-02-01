@@ -11,13 +11,26 @@
 {
     const Main = () =>
     {
-        const keys = {
-            '/channels/@me/****************': 'passphrase here'
+        const toEncryptMessageSuffix = '$$' // this will trigger the encryption. you can change it if you want to
+
+        const keysStore = {
+            '/channels/@me/*************':
+                [ // you can have multiple passphrases for different prefixes, so if u change your passphrase you can still see the old messages
+                    { // first passphrase is the default one and will be used to encrypt your messages
+                        prefix: '$$2:',
+                        passphrase: 'new (current) passphrase here'
+                    },
+                    { // old passphrase !!! you can remove this part if you dont have an old passphrases
+                        prefix: '$$:',
+                        passphrase: 'old passphrases here'
+                    }
+                    // ...
+                ]
         }
 
         const domActions =
         {
-            getMessagesArray() 
+            getMessagesArray()
             {
                 return Array.from(document.querySelectorAll('[class*="chatContent-"] [class*="messagesWrapper-"] [class*="messageContent-"]')) // selecting messageContent to select also replies and maybe things that might come with some future updates
                     .map(el =>
@@ -40,7 +53,7 @@
                         set text(value) { Array.from(this.textElement.childNodes).find((child) => child.nodeType === 3).nodeValue = value },
 
                         get prefixElement() { return this.textElement.querySelector('shiba-discord-encrypt-decrypt-prefixEl') }, // custom element right before the text
-                        set prefixElement(prefixEl) 
+                        set prefixElement(prefixEl)
                         {
                             if (this.prefixElement) this.prefixElement.remove()
                             prefixEl.setAttribute('shiba-discord-encrypt-decrypt-prefixEl', '')
@@ -55,7 +68,7 @@
                     .map((line) => line.textContent).join('\n')
 
             },
-            set messageBoxText(value) 
+            set messageBoxText(value)
             {
                 const lines = (document.querySelector('[class*="modal-"]') ?? document).querySelectorAll('[data-slate-object]')
                 for (let i = 1; i < lines.length; i++) lines[i].querySelector('[class*="slateTextArea"] [data-slate-string]').textContent = ''
@@ -65,45 +78,48 @@
             }
         }
 
-        const encrypt = (text, key) =>
+        const encrypt = (text, passphrase) =>
         {
-            return CryptoJS.AES.encrypt(text, key)
+            return CryptoJS.AES.encrypt(text, passphrase)
         }
 
-        const decrypt = (encrypted, key) =>
+        const decrypt = (encrypted, passphrase) =>
         {
-            return CryptoJS.AES.decrypt(encrypted, key).toString(CryptoJS.enc.Utf8)
+            return CryptoJS.AES.decrypt(encrypted, passphrase).toString(CryptoJS.enc.Utf8)
         }
 
         // Start
         (() =>
         {
-            const encryptedMessagePrefix = '$$:' // this is the prefix for the encypted messages. dont change it or make sure its same for the other person
-            const toDecryptMessageSuffix = '$$' // this will trigger the encryption. you can change it if you want to 
-
             const checkTextbox = () =>
             {
-                const key = keys[location.pathname]
-                if (!key) return
+                const keys = keysStore[location.pathname]
+
+                if (!keys) return
                 if (!domActions.messageBoxText) return
-                if (!domActions.messageBoxText.endsWith(toDecryptMessageSuffix)) return
-                const text = domActions.messageBoxText.substr(0, domActions.messageBoxText.length - toDecryptMessageSuffix.length)
-                const encrypted = encrypt(text, key)
+                if (!domActions.messageBoxText.endsWith(toEncryptMessageSuffix)) return
+
+                const text = domActions.messageBoxText.substr(0, domActions.messageBoxText.length - toEncryptMessageSuffix.length)
+                const encrypted = encrypt(text, keys[0].passphrase)
                 console.log('encrypted', text, encrypted)
-                domActions.messageBoxText = encryptedMessagePrefix + encrypted
+
+                domActions.messageBoxText = keys[0].prefix + encrypted
             }
 
             const refreshMessages = async () =>
             {
-                const key = keys[location.pathname]
-                if (!key) return
+                const keys = keysStore[location.pathname]
+
+                if (!keys) return
                 const messages = domActions.getMessagesArray()
                 for (const message of messages)
                 {
-                    if (!message.text) continue // check if the message is undefined like
-                    if (!message.text.startsWith(encryptedMessagePrefix)) continue // check if the message has the prefix
+                    if (!message.text) continue // skip if the message is undefined like
 
-                    const encrypted = message.text.substr(encryptedMessagePrefix.length) // get text, remove the Prefix
+                    const key = keys.find((key) => message.text.startsWith(key.prefix))  // check if the message has the prefix
+                    if (!key) continue // skip if the key is undefined like
+
+                    const encrypted = message.text.substr(key.prefix.length) // get text, remove the Prefix
 
                     if (message.textElement.hasAttribute('__tried-to-decrypt')) continue // skip if its already been tried to decrypted, so it skips the errors. also discord should remove this when the message is edited
                     message.textElement.setAttribute('__tried-to-decrypt', '')
@@ -111,7 +127,7 @@
                     {
                         // decrypted the message and update it
                         console.log('decrypting', encrypted)
-                        const text = decrypt(encrypted, key) // decrypt the text
+                        const text = decrypt(encrypted, key.passphrase) // decrypt the text
                         message.text = text // change the dom
 
                         // add 'decrypted' chip before the message
